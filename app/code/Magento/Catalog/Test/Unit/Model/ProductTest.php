@@ -514,6 +514,9 @@ class ProductTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals($initCategoryCollection, $result);
     }
 
+    /**
+     * @return array
+     */
     public function getCategoryCollectionCollectionNullDataProvider()
     {
         return [
@@ -624,6 +627,9 @@ class ProductTest extends \PHPUnit\Framework\TestCase
         $this->model->reindex();
     }
 
+    /**
+     * @return array
+     */
     public function getProductReindexProvider()
     {
         return [
@@ -870,13 +876,10 @@ class ProductTest extends \PHPUnit\Framework\TestCase
      */
     public function testSave()
     {
-        $this->imageCache->expects($this->once())
-            ->method('generate')
-            ->with($this->model);
-        $this->imageCacheFactory->expects($this->once())
-            ->method('create')
-            ->willReturn($this->imageCache);
-
+        $collection = $this->createMock(\Magento\Framework\Data\Collection::class);
+        $collection->method('count')->willReturn(1);
+        $collection->method('getIterator')->willReturn(new \ArrayObject([]));
+        $this->collectionFactoryMock->method('create')->willReturn($collection);
         $this->model->setIsDuplicate(false);
         $this->configureSaveTest();
         $this->model->beforeSave();
@@ -902,13 +905,10 @@ class ProductTest extends \PHPUnit\Framework\TestCase
      */
     public function testSaveAndDuplicate()
     {
-        $this->imageCache->expects($this->once())
-            ->method('generate')
-            ->with($this->model);
-        $this->imageCacheFactory->expects($this->once())
-            ->method('create')
-            ->willReturn($this->imageCache);
-
+        $collection = $this->createMock(\Magento\Framework\Data\Collection::class);
+        $collection->method('count')->willReturn(1);
+        $collection->method('getIterator')->willReturn(new \ArrayObject([]));
+        $this->collectionFactoryMock->method('create')->willReturn($collection);
         $this->model->setIsDuplicate(true);
         $this->configureSaveTest();
         $this->model->beforeSave();
@@ -1218,7 +1218,7 @@ class ProductTest extends \PHPUnit\Framework\TestCase
                     'media_type' => 'image',
                 ],
                 [
-                    'value_id' => 1,
+                    'value_id' => 3,
                     'file' => 'imageFile.jpg',
                 ],
                 [
@@ -1245,33 +1245,31 @@ class ProductTest extends \PHPUnit\Framework\TestCase
             'path' => '/var/www/html/pub/smallImageFile.jpg',
         ]);
 
-        $directoryMock = $this->getMockBuilder(\Magento\Framework\Filesystem\Directory\ReadInterface::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $this->filesystemMock->expects($this->once())->method('getDirectoryRead')->willReturn($directoryMock);
+        $directoryMock = $this->createMock(\Magento\Framework\Filesystem\Directory\ReadInterface::class);
+        $directoryMock->method('getAbsolutePath')->willReturnOnConsecutiveCalls(
+            '/var/www/html/pub/imageFile.jpg',
+            '/var/www/html/pub/smallImageFile.jpg'
+        );
+        $this->mediaConfig->method('getMediaUrl')->willReturnOnConsecutiveCalls(
+            'http://magento.dev/pub/imageFile.jpg',
+            'http://magento.dev/pub/smallImageFile.jpg'
+        );
+        $this->filesystemMock->method('getDirectoryRead')->willReturn($directoryMock);
         $this->model->setData('media_gallery', $mediaEntries);
-        $imagesCollectionMock = $this->getMockBuilder(\Magento\Framework\Data\Collection::class)
-            ->disableOriginalConstructor()
-            ->getMock();
-        $this->collectionFactoryMock->expects($this->once())->method('create')->willReturn($imagesCollectionMock);
-        $imagesCollectionMock->expects($this->at(2))
-            ->method('getItemById')
-            ->with(1)
-            ->willReturn($expectedImageDataObject);
-        $this->mediaConfig->expects($this->at(0))
-            ->method('getMediaUrl')
-            ->willReturn('http://magento.dev/pub/imageFile.jpg');
-        $directoryMock->expects($this->at(0))
-            ->method('getAbsolutePath')
-            ->willReturn('/var/www/html/pub/imageFile.jpg');
-        $this->mediaConfig->expects($this->at(2))
-            ->method('getMediaUrl')
-            ->willReturn('http://magento.dev/pub/smallImageFile.jpg');
-        $directoryMock->expects($this->at(1))
-            ->method('getAbsolutePath')
-            ->willReturn('/var/www/html/pub/smallImageFile.jpg');
-        $imagesCollectionMock->expects($this->at(1))->method('addItem')->with($expectedImageDataObject);
-        $imagesCollectionMock->expects($this->at(4))->method('addItem')->with($expectedSmallImageDataObject);
+        $imagesCollectionMock = $this->createMock(\Magento\Framework\Data\Collection::class);
+        $imagesCollectionMock->method('count')->willReturn(0);
+        $imagesCollectionMock->method('getItemById')->willReturnMap(
+            [
+                [1, null],
+                [2, null],
+                [3, 'not_null_skeep_foreache'],
+            ]
+        );
+        $imagesCollectionMock->expects(self::exactly(2))->method('addItem')->withConsecutive(
+            $expectedImageDataObject,
+            $expectedSmallImageDataObject
+        );
+        $this->collectionFactoryMock->method('create')->willReturn($imagesCollectionMock);
 
         $this->model->getMediaGalleryImages();
     }
@@ -1305,7 +1303,7 @@ class ProductTest extends \PHPUnit\Framework\TestCase
         );
 
         //Change the attribute value, should reflect in getCustomAttribute
-        $this->model->setData($customAttributeCode, $newCustomAttributeValue);
+        $this->model->setCustomAttribute($customAttributeCode, $newCustomAttributeValue);
         $this->assertEquals(1, count($this->model->getCustomAttributes()));
         $this->assertNotNull($this->model->getCustomAttribute($customAttributeCode));
         $this->assertEquals(
