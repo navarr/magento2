@@ -15,21 +15,6 @@ use Magento\Framework\Stdlib\BooleanUtils;
 class BaseStringUtils implements InterpreterInterface
 {
     /**
-     * @var BooleanUtils
-     */
-    private $booleanUtils;
-
-    /**
-     * BaseStringUtils constructor.
-     *
-     * @param BooleanUtils $booleanUtils
-     */
-    public function __construct(BooleanUtils $booleanUtils)
-    {
-        $this->booleanUtils = $booleanUtils;
-    }
-
-    /**
      * {@inheritdoc}
      * @return string
      * @throws \InvalidArgumentException
