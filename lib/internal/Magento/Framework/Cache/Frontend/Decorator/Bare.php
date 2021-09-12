@@ -10,7 +10,10 @@
  */
 namespace Magento\Framework\Cache\Frontend\Decorator;
 
-class Bare implements \Magento\Framework\Cache\FrontendInterface
+use Exception;
+use Psr\SimpleCache\CacheException;
+
+class Bare implements \Magento\Framework\Cache\FrontendInterface, \Psr\SimpleCache\CacheInterface
 {
     /**
      * Cache frontend instance to delegate actual cache operations to
@@ -60,9 +63,43 @@ class Bare implements \Magento\Framework\Cache\FrontendInterface
     /**
      * {@inheritdoc}
      */
+    public function has($key)
+    {
+        try {
+            return !!$this->test($key);
+        } catch (Exception $e) {
+            throw new CacheException($e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function load($identifier)
     {
         return $this->_getFrontend()->load($identifier);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function get($key, $default = null)
+    {
+        try {
+            return $this->load($key) ?? $default;
+        } catch (Exception $e) {
+            throw new CacheException($e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getMultiple($keys, $default = null)
+    {
+        foreach ($keys as $key) {
+            yield $key => $this->get($key, $default);
+        }
     }
 
     /**
@@ -73,6 +110,38 @@ class Bare implements \Magento\Framework\Cache\FrontendInterface
     public function save($data, $identifier, array $tags = [], $lifeTime = null)
     {
         return $this->_getFrontend()->save($data, $identifier, $tags, $lifeTime);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function set($key, $value, $ttl = null)
+    {
+        if ($ttl instanceof \DateInterval) {
+            // Convert acceptable DateInterval into seconds
+            $now = new \DateTimeImmutable();
+            $afterTtl = $now->add($ttl);
+            $nowSeconds = $now->format('U');
+            $thenSeconds = $afterTtl->format('U');
+            $ttl = $thenSeconds - $nowSeconds;
+        }
+        try {
+            return $this->save($value, $key, [], $ttl);
+        } catch (Exception $e) {
+            throw new CacheException($e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setMultiple($values, $ttl = null)
+    {
+        $success = true;
+        foreach ($values as $key => $value) {
+            $success = $success && $this->set($key, $value, $ttl);
+        }
+        return $success;
     }
 
     /**
@@ -105,5 +174,41 @@ class Bare implements \Magento\Framework\Cache\FrontendInterface
     public function getLowLevelFrontend()
     {
         return $this->_getFrontend()->getLowLevelFrontend();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function delete($key)
+    {
+        try {
+          return $this->remove($key);
+        } catch (Exception $e) {
+            throw new CacheException($e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function clear()
+    {
+        try {
+            return $this->clean();
+        } catch (Exception $e) {
+            throw new CacheException($e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function deleteMultiple($keys)
+    {
+        $success = true;
+        foreach ($keys as $key) {
+            $success = $success && $this->delete($key);
+        }
+        return $success;
     }
 }
