@@ -319,6 +319,7 @@ class Renderer extends \Magento\Framework\View\Element\Template implements
      * Retrieve item messages, return array with keys, text => the message text, type => type of a message
      *
      * @return array
+     * @phpstan-return list<array{text: string, type: string}>
      */
     public function getMessages()
     {
